@@ -15,37 +15,16 @@ class Args:
     pass
 
 
-class Grad:
-
-    def __init__(self, u, t, x):
-        self.t = t
-        self.x = x
-        self.u = u
-
-    def __call__(self, d):
-        x, t = d
-        ans = self.u
-        for i in range(x):
-            ans, = tf.gradients(ans, self.x)
-        for i in range(t):
-            ans, = tf.gradients(ans, self.t)
-        return ans
-
-
-class Func:
-
-    def eval(self, mod, grad):
-        u = grad((0, 0))
-        ut = grad((0, 1))
-        uxx = grad((2, 0))
-        return ut - args.D * uxx
-
-
 @tf.function
 def func0(weights):
     u = neural_net(tf.stack((args.x_f, args.t_f), 1), weights)
+
+    ut, = tf.gradients(u, args.t_f)
+    ux, = tf.gradients(u, args.x_f)
+    uxx, = tf.gradients(ux, args.x_f)
+    f = ut - args.D * uxx
+
     u_rect = neural_net(XT_rect, weights)
-    f = args.func.eval(tf, Grad(u, args.t_f, args.x_f))
     loss = tf.reduce_mean(tf.square(args.u_rect - u_rect)) + tf.reduce_mean(
         tf.square(f))
     grads = tf.gradients(loss, weights)
@@ -147,5 +126,4 @@ for w in args.weights:
     offsets.append(cnt)
 args.grads = np.empty(cnt, np.float64)
 
-args.func = Func()
 scipy.optimize.fmin_l_bfgs_b(func, x0, None, maxiter=args.epochs)
